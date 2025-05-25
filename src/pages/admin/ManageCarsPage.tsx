@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Plus, Edit, Trash, Car, Image } from 'lucide-react';
+import { Plus, Edit, Trash } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCarsStore } from '../../store/useCarsStore';
 import { Button } from '../../components/ui/Button';
 import { Input, Select, Textarea } from '../../components/ui/Input';
 import { Card, CardContent } from '../../components/ui/Card';
+import { supabase } from '../../lib/supabase';
 
 type CarFormValues = {
   name: string;
@@ -18,7 +19,6 @@ type CarFormValues = {
   fuel_type: string;
   seats: number;
   mileage: number;
-  has_ac: boolean;
   image_url: string;
   description: string;
 };
@@ -27,99 +27,107 @@ const ManageCarsPage: React.FC = () => {
   const { cars, fetchCars } = useCarsStore();
   const [isAddingCar, setIsAddingCar] = useState(false);
   const [editingCar, setEditingCar] = useState<string | null>(null);
-  
-  const { 
-    register, 
+
+  const {
+    register,
     handleSubmit,
     reset,
-    formState: { errors, isSubmitting } 
+    formState: { errors, isSubmitting }
   } = useForm<CarFormValues>();
-  
+
   const onSubmit = async (data: CarFormValues) => {
     try {
-      // Here you would typically send the data to your backend
-      console.log('Car form data:', data);
-      
-      toast.success(editingCar ? 'Car updated successfully!' : 'Car added successfully!');
+      const { data: insertedCar, error } = await supabase
+        .from('cars')
+        .insert([data]);
+
+      if (error) {
+        console.error('Insert error:', error.message);
+        toast.error('Failed to add car.');
+        return;
+      }
+
+      toast.success('Car added successfully!');
       setIsAddingCar(false);
       setEditingCar(null);
       reset();
       fetchCars();
-    } catch (error) {
-      toast.error('Failed to save car. Please try again.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Something went wrong.');
     }
   };
-  
+
   const handleDelete = async (carId: string) => {
     if (!window.confirm('Are you sure you want to delete this car?')) return;
-    
+
     try {
-      // Here you would typically delete the car from your backend
-      console.log('Deleting car:', carId);
-      
-      toast.success('Car deleted successfully!');
+      const { error } = await supabase.from('cars').delete().eq('id', carId);
+      if (error) {
+        toast.error('Failed to delete car.');
+        return;
+      }
+
+      toast.success('Car deleted.');
       fetchCars();
-    } catch (error) {
-      toast.error('Failed to delete car. Please try again.');
+    } catch (err) {
+      toast.error('Error deleting car.');
     }
   };
-  
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Manage Cars
         </h2>
-        
-        <Button 
-          onClick={() => setIsAddingCar(!isAddingCar)}
-          icon={<Plus className="h-4 w-4" />}
-        >
+        <Button onClick={() => setIsAddingCar(!isAddingCar)} icon={<Plus className="h-4 w-4" />}>
           Add New Car
         </Button>
       </div>
-      
+
       {(isAddingCar || editingCar) && (
         <Card className="mb-8">
           <CardContent>
             <h3 className="text-xl font-semibold mb-4">
               {editingCar ? 'Edit Car' : 'Add New Car'}
             </h3>
-            
+
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Name"
+                  {...register('name', { required: 'Name is required' })}
+                  error={errors.name?.message}
+                />
                 <Input
                   label="Brand"
                   {...register('brand', { required: 'Brand is required' })}
                   error={errors.brand?.message}
                 />
-                
                 <Input
                   label="Model"
                   {...register('model', { required: 'Model is required' })}
                   error={errors.model?.message}
                 />
-                
                 <Input
                   type="number"
                   label="Year"
-                  {...register('year', { 
+                  {...register('year', {
                     required: 'Year is required',
                     min: { value: 1900, message: 'Invalid year' }
                   })}
                   error={errors.year?.message}
                 />
-                
                 <Input
                   type="number"
                   label="Price per Day"
-                  {...register('price_per_day', { 
+                  {...register('price_per_day', {
                     required: 'Price is required',
-                    min: { value: 0, message: 'Price must be positive' }
+                    min: { value: 0, message: 'Must be positive' }
                   })}
                   error={errors.price_per_day?.message}
                 />
-                
                 <Select
                   label="Car Type"
                   {...register('car_type', { required: 'Car type is required' })}
@@ -129,19 +137,17 @@ const ManageCarsPage: React.FC = () => {
                     { value: 'SUV', label: 'SUV' },
                     { value: 'Sports', label: 'Sports' },
                     { value: 'Convertible', label: 'Convertible' },
-                    { value: 'Hatchback', label: 'Hatchback' },
+                    { value: 'Hatchback', label: 'Hatchback' }
                   ]}
                 />
-                
                 <Select
                   label="Transmission"
                   {...register('transmission')}
                   options={[
                     { value: 'Automatic', label: 'Automatic' },
-                    { value: 'Manual', label: 'Manual' },
+                    { value: 'Manual', label: 'Manual' }
                   ]}
                 />
-                
                 <Select
                   label="Fuel Type"
                   {...register('fuel_type')}
@@ -149,48 +155,37 @@ const ManageCarsPage: React.FC = () => {
                     { value: 'Petrol', label: 'Petrol' },
                     { value: 'Diesel', label: 'Diesel' },
                     { value: 'Electric', label: 'Electric' },
-                    { value: 'Hybrid', label: 'Hybrid' },
+                    { value: 'Hybrid', label: 'Hybrid' }
                   ]}
                 />
-                
                 <Input
                   type="number"
                   label="Seats"
-                  {...register('seats', { 
-                    required: 'Number of seats is required',
-                    min: { value: 1, message: 'Must have at least 1 seat' }
+                  {...register('seats', {
+                    required: 'Seats are required',
+                    min: { value: 1, message: 'Minimum 1 seat' }
                   })}
                   error={errors.seats?.message}
                 />
-                
-                <Input
-                  type="number"
-                  label="Mileage"
-                  {...register('mileage')}
-                />
-                
+                <Input type="number" label="Mileage" {...register('mileage')} />
                 <Input
                   label="Image URL"
                   {...register('image_url', { required: 'Image URL is required' })}
                   error={errors.image_url?.message}
                 />
               </div>
-              
+
               <Textarea
                 label="Description"
                 {...register('description')}
                 rows={4}
               />
-              
+
               <div className="flex gap-4">
-                <Button 
-                  type="submit" 
-                  isLoading={isSubmitting}
-                >
+                <Button type="submit" isLoading={isSubmitting}>
                   {editingCar ? 'Update Car' : 'Add Car'}
                 </Button>
-                
-                <Button 
+                <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
@@ -206,16 +201,15 @@ const ManageCarsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {cars.map((car) => (
           <Card key={car.id}>
-            <img 
-              src={car.image_url} 
+            <img
+              src={car.image_url}
               alt={car.name}
               className="w-full h-48 object-cover rounded-t-lg"
             />
-            
             <CardContent>
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-lg font-semibold">{car.name}</h3>
@@ -223,20 +217,15 @@ const ManageCarsPage: React.FC = () => {
                   ${car.price_per_day}/day
                 </span>
               </div>
-              
-              <div className="space-y-2 mb-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {car.description}
-                </p>
-                
-                <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="space-y-2 mb-4 text-sm text-gray-600 dark:text-gray-400">
+                <p>{car.description}</p>
+                <div className="grid grid-cols-2 gap-2">
                   <div>Type: {car.car_type}</div>
                   <div>Transmission: {car.transmission}</div>
                   <div>Fuel: {car.fuel_type}</div>
                   <div>Seats: {car.seats}</div>
                 </div>
               </div>
-              
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -246,7 +235,6 @@ const ManageCarsPage: React.FC = () => {
                 >
                   Edit
                 </Button>
-                
                 <Button
                   variant="danger"
                   size="sm"
