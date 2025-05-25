@@ -4,40 +4,58 @@ import { Check, X, Search } from 'lucide-react';
 import { useBookingStore } from '../../store/useBookingStore';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { toast } from 'sonner';
+import { supabase } from '../../lib/supabase'; // Adjust path if needed
 
 const ManageBookingsPage: React.FC = () => {
   const { bookings, fetchAllBookings, isLoading } = useBookingStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredBookings, setFilteredBookings] = useState(bookings);
-  
+
   useEffect(() => {
     fetchAllBookings();
   }, [fetchAllBookings]);
-  
+
   useEffect(() => {
-    const filtered = bookings.filter(booking => 
+    const filtered = bookings.filter((booking) =>
       booking.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       booking.car_id.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredBookings(filtered);
   }, [searchTerm, bookings]);
-  
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-  
+
+  const handleCancelBooking = async (bookingId: string) => {
+    const confirmed = window.confirm('Are you sure you want to cancel this booking?');
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId);
+
+      if (error) {
+        console.error(error);
+        toast.error('Failed to cancel booking.');
+        return;
+      }
+
+      toast.success('Booking cancelled.');
+      fetchAllBookings();
+    } catch (err) {
+      console.error(err);
+      toast.error('An error occurred.');
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Manage Bookings
         </h2>
-        
+
         <div className="w-64">
           <Input
             placeholder="Search bookings..."
@@ -47,7 +65,7 @@ const ManageBookingsPage: React.FC = () => {
           />
         </div>
       </div>
-      
+
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -89,20 +107,22 @@ const ManageBookingsPage: React.FC = () => {
                     {booking.car_id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {format(new Date(booking.start_date), 'MMM dd, yyyy')} - 
+                    {format(new Date(booking.start_date), 'MMM dd, yyyy')} -{' '}
                     {format(new Date(booking.end_date), 'MMM dd, yyyy')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     ${booking.total_price}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                      booking.status === 'confirmed'
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                        : booking.status === 'cancelled'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full font-medium ${
+                        booking.status === 'confirmed'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          : booking.status === 'cancelled'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                      }`}
+                    >
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                     </span>
                   </td>
@@ -112,6 +132,7 @@ const ManageBookingsPage: React.FC = () => {
                         size="sm"
                         variant="outline"
                         icon={<Check className="h-4 w-4" />}
+                        // Add approval logic here if needed
                       >
                         Approve
                       </Button>
@@ -119,6 +140,7 @@ const ManageBookingsPage: React.FC = () => {
                         size="sm"
                         variant="danger"
                         icon={<X className="h-4 w-4" />}
+                        onClick={() => handleCancelBooking(booking.id)}
                       >
                         Cancel
                       </Button>
@@ -126,6 +148,13 @@ const ManageBookingsPage: React.FC = () => {
                   </td>
                 </tr>
               ))}
+              {filteredBookings.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-6 text-gray-500 dark:text-gray-400">
+                    No bookings found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
