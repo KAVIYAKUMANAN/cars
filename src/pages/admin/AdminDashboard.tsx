@@ -21,7 +21,6 @@ const AdminDashboard: React.FC = () => {
     totalRevenue: 0,
     recentBookings: [],
   });
-
   const [isLoading, setIsLoading] = useState(true);
   const { fetchAllBookings } = useBookingStore();
 
@@ -29,30 +28,35 @@ const AdminDashboard: React.FC = () => {
     const loadStats = async () => {
       setIsLoading(true);
       try {
-        // Get total cars
-        const { count: totalCars, error: carError } = await supabase
+        console.log('📊 Fetching admin stats from Supabase...');
+
+        // Total Cars
+        const { data: carsData, count: totalCars, error: carsError } = await supabase
           .from('cars')
           .select('*', { count: 'exact', head: true });
+        console.log('Cars:', { totalCars, carsError });
 
-        // Get total users
-        const { count: totalUsers, error: userError } = await supabase
+        // Total Users
+        const { data: usersData, count: totalUsers, error: usersError } = await supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true });
+        console.log('Users:', { totalUsers, usersError });
 
-        // Get total bookings
-        const { count: totalBookings, error: bookingError } = await supabase
+        // Total Bookings
+        const { data: bookingsData, count: totalBookings, error: bookingsError } = await supabase
           .from('bookings')
           .select('*', { count: 'exact', head: true });
+        console.log('Bookings:', { totalBookings, bookingsError });
 
-        // Get total revenue (only confirmed bookings)
-        const { data: bookings, error: revenueError } = await supabase
+        // Total Revenue
+        const { data: confirmedBookings, error: revenueError } = await supabase
           .from('bookings')
           .select('total_price')
           .eq('status', 'confirmed');
+        const totalRevenue = confirmedBookings?.reduce((acc, cur) => acc + (cur.total_price || 0), 0) || 0;
+        console.log('Revenue:', { confirmedBookings, totalRevenue, revenueError });
 
-        const totalRevenue = bookings?.reduce((acc, b) => acc + (b.total_price || 0), 0) || 0;
-
-        // Get recent bookings (use implicit FK relationship by table name)
+        // Recent Bookings with foreign key joins
         const { data: recentBookings, error: recentError } = await supabase
           .from('bookings')
           .select(`
@@ -62,42 +66,25 @@ const AdminDashboard: React.FC = () => {
             end_date,
             total_price,
             status,
-            profiles(full_name, email),
-            cars(brand, model, image_url)
+            profiles (full_name, email),
+            cars (brand, model, image_url)
           `)
           .order('created_at', { ascending: false })
           .limit(5);
-
-        if (carError || userError || bookingError || revenueError || recentError) {
-          console.error('Supabase errors:', {
-            carError,
-            userError,
-            bookingError,
-            revenueError,
-            recentError,
-          });
-        }
-
-        console.log('📊 Stats Raw:', {
-          totalCars,
-          totalUsers,
-          totalBookings,
-          bookings,
-          totalRevenue,
-          recentBookings,
-        });
+        console.log('Recent Bookings:', { recentBookings, recentError });
 
         setStats({
-          totalCars: totalCars || 0,
-          totalUsers: totalUsers || 0,
-          totalBookings: totalBookings || 0,
+          totalCars: totalCars ?? carsData?.length ?? 0,
+          totalUsers: totalUsers ?? usersData?.length ?? 0,
+          totalBookings: totalBookings ?? bookingsData?.length ?? 0,
           totalRevenue,
-          recentBookings: recentBookings || [],
+          recentBookings: recentBookings ?? [],
         });
 
-        await fetchAllBookings();
-      } catch (err) {
-        console.error('Error loading admin stats:', err);
+        // Optional: comment this if not needed
+        // await fetchAllBookings();
+      } catch (error) {
+        console.error('🔥 Error loading admin stats:', error);
       } finally {
         setIsLoading(false);
       }
@@ -121,6 +108,7 @@ const AdminDashboard: React.FC = () => {
       </h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Total Cars */}
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -140,6 +128,7 @@ const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Total Users */}
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -159,6 +148,7 @@ const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Total Bookings */}
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -178,6 +168,7 @@ const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Total Revenue */}
         <Card>
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -199,16 +190,14 @@ const AdminDashboard: React.FC = () => {
         </Card>
       </div>
 
+      {/* Recent Bookings */}
       <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Recent Bookings
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Bookings</h3>
           <Link to="/admin/bookings" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
             View All
           </Link>
         </div>
-
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -243,7 +232,7 @@ const AdminDashboard: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">
-                    {new Date(booking.start_date).toLocaleDateString()} - 
+                    {new Date(booking.start_date).toLocaleDateString()} -{' '}
                     {new Date(booking.end_date).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900 dark:text-white">
@@ -254,8 +243,8 @@ const AdminDashboard: React.FC = () => {
                       ${booking.status === 'confirmed'
                         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
                         : booking.status === 'cancelled'
-                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                       }`}
                     >
                       {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
